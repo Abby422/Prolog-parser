@@ -1,0 +1,153 @@
+// To compile and run this program using jacc and Sun's JDK:
+//
+// jacc prologParser.jacc
+// javac PrologParser.java PrologTokens.java
+// java PrologParser
+// ... enter Prolog statements ... hit EOF to terminate
+//
+
+
+%{
+import java.io.StringReader;
+import java.util.Scanner;
+import java.util.zip.*;
+import java.io.Reader;
+
+%}
+
+%class PrologParser
+%interface PrologTokens
+%semantic String : yylval
+%get token
+%next yylex()
+
+%token ATOM VAR PERIOD COMMA LPAREN RPAREN COLON SEMICOLON
+%token QUERY CUT DISJUNCTIVE_CONJUNCTION
+%left DISJUNCTIVE_CONJUNCTION
+%left ','
+
+%%
+
+prog : clause PERIOD { System.out.println("Parsed clause: " + $1); }
+| query PERIOD { System.out.println("Parsed query: " + $1); }
+;
+
+clause :atom args { $$ = $1 + $2;}
+| atom args DISJUNCTIVE_CONJUNCTION clause { $$ = $1 + $2 + $3; }
+;
+
+query : QUERY '-' atom args{ $$ = '?' + '-'  + $3 + $4; }
+| atom args QUERY CUT { $$ = $1 + $2 + "!"; }
+;
+
+args : LPAREN RPAREN { $$ = ""; }
+| LPAREN term RPAREN { $$ = "(" + $2 + ")"; }
+| LPAREN term COMMA args RPAREN { $$ = "(" + $2 + ',' + $4 + ")"; }
+;
+
+term : atom { $$ = $1; }
+| variable { $$ = $1; }
+| list { $$ = $1; }
+;
+
+atom : ATOM { $$ = $1; }
+;
+
+variable : VAR { $$ = $1; }
+;
+
+list : '[' ']' { $$ = "[]"; }
+| '[' term ']' { $$ = "[" + $2 + "]"; }
+| '[' term '|' term ']' { $$ = "[" + $2 + "|" + $4 + "]"; }
+;
+
+%%
+private boolean errorFlag = false;
+
+private void yyerror(String msg) {
+errorFlag = true;
+System.out.println("ERROR: " + msg);
+}
+
+private int c;
+
+/** Read a single input character from standard input.
+*/
+private void nextChar() {
+if (c>=0) {
+try {
+c = System.in.read();
+} catch (Exception e) {
+c = (-1);
+}
+}
+}
+
+int token;
+String yylval;
+
+/** Read the next token and return the
+
+corresponding integer code. why is this an integer code
+*/
+int yylex() {
+for (;;) {
+// Skip whitespace
+while (c==' ' || c=='\n' || c=='\t' || c=='\r') {
+nextChar();
+}
+if (c<0) {
+return (token=ENDINPUT);
+}
+switch (c) {
+case '.' : nextChar();
+return token=PERIOD;
+case ',' : nextChar();
+return token=COMMA;
+case '(' : nextChar();
+return token=LPAREN;
+case ')' : nextChar();
+return token = RPAREN;
+case '?' : nextChar();
+return token = QUERY;
+default:
+                if (Character.isLetter((char)c)) {
+                    StringBuilder sb = new StringBuilder();
+                    do {
+                        sb.append((char)c);
+                        nextChar();
+                    } while (Character.isLetterOrDigit((char)c) || c == '_');
+                    yylval = sb.toString();
+                    return token=ATOM;
+                } else {
+                    yyerror("Illegal character "+c);
+                    nextChar();
+                }
+        
+}
+}
+}
+
+public void setInput(Reader reader) {
+    yylval = null;
+    
+}
+
+  public static void main(String[] args) {
+    PrologParser parser = new PrologParser();
+    Scanner scanner = new Scanner(System.in);
+
+while (true) {
+    System.out.print("Enter query (or EOF to exit): ");
+    String input = scanner.nextLine();
+    if (input == null || input.isEmpty()) {
+        break;
+    }
+    parser.setInput(new StringReader(input));
+    parser.nextChar();
+    parser.yylex();
+    parser.parse();
+    
+}
+
+  }
